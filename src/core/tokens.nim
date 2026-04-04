@@ -9,7 +9,7 @@ type
     # Operators
     tkEq, tkPlus, tkMinus, tkMul, tkDiv
     # Values
-    tkIdent, tkStringLit, tkIntLit, tkFloatLit, tkBoolLit
+    tkIdent, tkStringLit, tkIntLit, tkFloatLit, tkBoolLit, tkCharLit
     # Special
     tkEOF, tkError
 

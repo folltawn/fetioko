@@ -1,7 +1,7 @@
 import std/[os, parseopt, strutils]
 import core/[conductor, config, errors]
 
-const version = "A26.04.3"
+const version = "A26.04.4"
 
 proc printHelp() =
   echo """
@@ -73,10 +73,15 @@ proc main() =
   let args = parseArgs(extraArgs)
   
   if configPath == "":
-    if fileExists("fetioko.yml"):
+    if fileExists("fetioko.upc"):
+      configPath = "fetioko.upc"
+    elif fileExists("fetioko.ini"):
+      configPath = "fetioko.ini"
+    elif fileExists("fetioko.yml"):
       configPath = "fetioko.yml"
+      echo "Warning: YAML support is deprecated, use fetioko.upc"
     else:
-      echo "Error: No config file specified and fetioko.yml not found"
+      echo "Error: No config file found (fetioko.upc, fetioko.ini, or fetioko.yml)"
       quit(1)
 
   var conductor: Conductor = nil

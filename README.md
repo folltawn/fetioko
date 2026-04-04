@@ -55,3 +55,43 @@ Total errors: 1.
 123456
 
 sendln!(); все встроенные в ядро методы с !
+
+
+use <"module":{varname,func()} @aliase>; // from std; now can't be used
+use <"module" @aliase>; // from std; now can't be used
+use <"module":{varname,func()}>; // from std; now can't be used
+use <"module">; // from std; now can't be used
+use {x, func()} from "../path/to/file";
+use "../path/to/file" as aliase;
+use "../path/to/file";
+
+let::int x = 14; // local in area; can't be changed
+var::str y = "hi"; // local in area; can be changed
+const::char f = 'f'; // global in file; can't be changed
+pub var::str y = "hi"; // can will be import
+pub const::char f = 'f'; // can be imported
+
+```
+int fl() {
+    const::int x = 14;
+    return 0;
+}
+
+fl();
+sendln!(x);
+fl(); // новая переменная x не будет создана, т.к. уже существует const x
+sendln!(x);
+```
+
+
+fetioko.upc (UPC = Ultimate Project Configuration):
+```
+name:("my-app2")
+version:("0.1.0")
+author:[]
+main:("main.ftk")
+build.outfile:("${name}-${version}")
+build.outdir:("bin")
+test.outfile:("test_${name}_${version}")
+test.outdir:("test")
+```

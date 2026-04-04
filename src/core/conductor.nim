@@ -2,6 +2,7 @@ import std/[os, strformat, tables, sequtils, strutils, osproc]
 import ./context, ./lexer, ./parser, ./config, ./errors, ./ast, ./tokens
 import ../constructs/sendln/sem, ../constructs/sendln/codegen
 import ../constructs/function/sem, ../constructs/function/codegen
+import ../constructs/variable/sem, ../constructs/variable/codegen
 
 type
   Conductor* = ref object
@@ -56,6 +57,8 @@ proc compileFile(c: Conductor, path: string): string =
       semSendLn(c.ctx, node)
     of nkFunction:
       semFunction(c.ctx, node)
+    of nkVariable:
+      semVariable(c.ctx, node, false)
     else:
       discard
   
@@ -72,8 +75,8 @@ proc compileFile(c: Conductor, path: string): string =
     printErrorSummary()
     quit(1)
   
-  # Проверяем сигнатуру main
-  if not mainFunc.pub or mainFunc.returnType != "int" or mainFunc.params.len > 0:
+  # Проверяем сигнатуру main (используем funcPub)
+  if not mainFunc.funcPub or mainFunc.returnType != "int" or mainFunc.params.len > 0:
     let err = newCompilerError(ecMainWrongSignature, path, mainFunc.line, mainFunc.col)
     report(err)
     printErrorSummary()
@@ -81,19 +84,24 @@ proc compileFile(c: Conductor, path: string): string =
   
   # Генерация кода
   var functionsCode = ""
+  var globalsCode = ""
+  
   for node in ast:
     case node.kind
     of nkFunction:
       functionsCode.add(genFunction(node))
+    of nkVariable:
+      if node.modifier == vmConst and not node.varPub:
+        globalsCode.add(genVariable(node, false))
     else:
       discard
   
-  result = "#include <stdio.h>\n\n" & functionsCode
+  result = "#include <stdio.h>\n\n" & globalsCode & "\n" & functionsCode
 
 proc build*(c: Conductor) =
   c.log("Building project: " & c.config.name)
   
-  let mainPath = c.config.baseDir / c.config.assembly.main
+  let mainPath = c.config.baseDir / c.config.main
   
   if not fileExists(mainPath):
     let err = newCompilerError(ecUnknownPath, mainPath, 1, 1)
@@ -104,10 +112,10 @@ proc build*(c: Conductor) =
   c.ctx.mainFile = mainPath
   let ccode = c.compileFile(mainPath)
   
-  let outdir = c.config.baseDir / c.config.assembly.build.outdir
+  let outdir = c.config.baseDir / c.config.buildOutdir
   createDir(outdir)
-  
-  let outfile = interpolate(c.config.assembly.build.outfile, c.config.name, c.config.version)
+
+  let outfile = interpolate(c.config.buildOutfile, c.config.name, c.config.version)
   let cPath = outdir / (outfile & ".c")
   let exePath = outdir / outfile
   
@@ -131,7 +139,7 @@ proc build*(c: Conductor) =
 proc test*(c: Conductor) =
   c.log("Testing project: " & c.config.name)
   
-  let mainPath = c.config.baseDir / c.config.assembly.main
+  let mainPath = c.config.baseDir / c.config.main
   
   if not fileExists(mainPath):
     let err = newCompilerError(ecUnknownPath, mainPath, 1, 1)
@@ -142,10 +150,10 @@ proc test*(c: Conductor) =
   c.ctx.mainFile = mainPath
   let ccode = c.compileFile(mainPath)
   
-  let outdir = c.config.baseDir / c.config.assembly.test.outdir
+  let outdir = c.config.baseDir / c.config.testOutdir
   createDir(outdir)
   
-  let outfile = interpolate(c.config.assembly.test.outfile, c.config.name, c.config.version)
+  let outfile = interpolate(c.config.testOutfile, c.config.name, c.config.version)
   let cPath = outdir / (outfile & ".c")
   let exePath = outdir / outfile
   

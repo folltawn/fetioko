@@ -6,7 +6,7 @@ import ./errors
 proc semFunction*(ctx: Context, node: ASTNode) =
   # Проверяем, что main имеет правильную сигнатуру
   if node.name == "main":
-    if not node.pub:
+    if not node.funcPub:  # изменено с node.pub на node.funcPub
       errorWrongSignature(ctx.mainFile, node.line, node.col)
     if node.returnType != "int":
       errorWrongSignature(ctx.mainFile, node.line, node.col)
@@ -29,9 +29,11 @@ proc semFunction*(ctx: Context, node: ASTNode) =
     of nkSendLn:
       discard
     of nkReturn:
-      # Проверяем, что return возвращает значение
       if stmt.retValue == "":
         let err = newCompilerError(ecMissingReturn, ctx.mainFile, stmt.line, stmt.col)
         report(err)
+    of nkVariable:
+      # Переменные внутри функции обрабатываются в variable/sem.nim
+      discard
     else:
       discard

@@ -64,6 +64,31 @@ proc readNumber(l: Lexer): Token =
   let kind = if isFloat: tkFloatLit else: tkIntLit
   newToken(kind, num, startLine, startCol)
 
+proc readChar(l: Lexer): Token =
+  let startLine = l.line
+  let startCol = l.col
+  l.advance()  # skip opening '
+  var ch = ""
+  
+  if l.ch == '\\':
+    l.advance()
+    case l.ch
+    of 'n': ch = "\n"
+    of 't': ch = "\t"
+    of '\\': ch = "\\"
+    of '\'': ch = "'"
+    else: ch = $l.ch
+    l.advance()
+  else:
+    ch = $l.ch
+    l.advance()
+  
+  if l.ch == '\'':
+    l.advance()
+    return newToken(tkCharLit, ch, startLine, startCol)
+  else:
+    return newToken(tkError, "Unclosed char", startLine, startCol)
+
 proc readString(l: Lexer): Token =
   let startLine = l.line
   let startCol = l.col
@@ -137,6 +162,8 @@ proc getNextToken*(l: Lexer): Token =
   of '*':
     l.advance()
     return newToken(tkMul, "*", startLine, startCol)
+  of '\'':
+    return l.readChar()
   of '/':
     l.advance()
     if l.ch == '/':
