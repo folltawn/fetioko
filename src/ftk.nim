@@ -1,11 +1,11 @@
 import std/[os, parseopt, strutils]
 import core/[conductor, config, errors]
 
-const version = "A26.04.1"
+const version = "A26.04.2"
 
 proc printHelp() =
   echo """
-Fetioko Compiler v""" & version & """
+Fetioko Compiler """ & version & """
 
 Usage:
   fetioko build <path_to_config> [args]   Build project
@@ -79,8 +79,9 @@ proc main() =
       echo "Error: No config file specified and fetioko.yml not found"
       quit(1)
 
+  var conductor: Conductor = nil
   try:
-    let conductor = newConductor()
+    conductor = newConductor()
     conductor.config = loadConfig(configPath)
     
     if args.logfile != "":
@@ -100,9 +101,14 @@ proc main() =
       quit(1)
       
   except CatchableError as e:
-    echo "Error: ", e.msg
     if conductor != nil and conductor.verbose:
       echo e.getStackTrace()
+    else:
+      if e of CompilerError:
+        report(CompilerError(e))
+      else:
+        echo "Error: ", e.msg
+    printErrorSummary()
     quit(1)
 
 when isMainModule:

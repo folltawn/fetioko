@@ -43,7 +43,11 @@ proc readIdent(l: Lexer): Token =
   while l.ch.isAlphaNumeric() or l.ch == '_':
     ident.add(l.ch)
     l.advance()
-  let kind = Keywords.get(ident, tkIdent)
+  
+  var kind = tkIdent
+  if Keywords.hasKey(ident):
+    kind = Keywords[ident]
+  
   newToken(kind, ident, startLine, startCol)
 
 proc readNumber(l: Lexer): Token =
@@ -63,51 +67,95 @@ proc readNumber(l: Lexer): Token =
 proc readString(l: Lexer): Token =
   let startLine = l.line
   let startCol = l.col
-  l.advance()
+  l.advance()  # skip opening quote
   var str = ""
   while l.ch != '"' and l.ch != '\0':
     if l.ch == '\\':
       l.advance()
       case l.ch
-      of 'n': str.add('\n')
-      of 't': str.add('\t')
-      of '\\': str.add('\\')
-      of '"': str.add('"')
-      else: str.add(l.ch)
+      of 'n':
+        str.add('\n')
+        l.advance()
+      of 't':
+        str.add('\t')
+        l.advance()
+      of '\\':
+        str.add('\\')
+        l.advance()
+      of '"':
+        str.add('"')
+        l.advance()
+      else:
+        str.add(l.ch)
+        l.advance()
     else:
       str.add(l.ch)
-    l.advance()
+      l.advance()
   if l.ch == '"':
-    l.advance()
+    l.advance()  # skip closing quote
   newToken(tkStringLit, str, startLine, startCol)
 
 proc getNextToken*(l: Lexer): Token =
   l.skipWhitespace()
   let startLine = l.line
   let startCol = l.col
+  
   case l.ch
-  of '\0': newToken(tkEOF, "", startLine, startCol)
-  of 'a'..'z', 'A'..'Z', '_': l.readIdent()
-  of '0'..'9': l.readNumber()
-  of '"': l.readString()
-  of '(': l.advance(); newToken(tkLParen, "(", startLine, startCol)
-  of ')': l.advance(); newToken(tkRParen, ")", startLine, startCol)
-  of '{': l.advance(); newToken(tkLBrace, "{", startLine, startCol)
-  of '}': l.advance(); newToken(tkRBrace, "}", startLine, startCol)
-  of ';': l.advance(); newToken(tkSemi, ";", startLine, startCol)
-  of ',': l.advance(); newToken(tkComma, ",", startLine, startCol)
-  of '=': l.advance(); newToken(tkEq, "=", startLine, startCol)
-  of '|': l.advance(); newToken(tkPipe, "|", startLine, startCol)
-  of '+': l.advance(); newToken(tkPlus, "+", startLine, startCol)
-  of '-': l.advance(); newToken(tkMinus, "-", startLine, startCol)
-  of '*': l.advance(); newToken(tkMul, "*", startLine, startCol)
-  of '/': l.advance(); newToken(tkDiv, "/", startLine, startCol)
+  of '\0':
+    return newToken(tkEOF, "", startLine, startCol)
+  of 'a'..'z', 'A'..'Z', '_':
+    return l.readIdent()
+  of '0'..'9':
+    return l.readNumber()
+  of '"':
+    return l.readString()
+  of '(':
+    l.advance()
+    return newToken(tkLParen, "(", startLine, startCol)
+  of ')':
+    l.advance()
+    return newToken(tkRParen, ")", startLine, startCol)
+  of '{':
+    l.advance()
+    return newToken(tkLBrace, "{", startLine, startCol)
+  of '}':
+    l.advance()
+    return newToken(tkRBrace, "}", startLine, startCol)
+  of ';':
+    l.advance()
+    return newToken(tkSemi, ";", startLine, startCol)
+  of ',':
+    l.advance()
+    return newToken(tkComma, ",", startLine, startCol)
+  of '=':
+    l.advance()
+    return newToken(tkEq, "=", startLine, startCol)
+  of '|':
+    l.advance()
+    return newToken(tkPipe, "|", startLine, startCol)
+  of '+':
+    l.advance()
+    return newToken(tkPlus, "+", startLine, startCol)
+  of '-':
+    l.advance()
+    return newToken(tkMinus, "-", startLine, startCol)
+  of '*':
+    l.advance()
+    return newToken(tkMul, "*", startLine, startCol)
+  of '/':
+    l.advance()
+    return newToken(tkDiv, "/", startLine, startCol)
+  of '!':
+    l.advance()
+    return newToken(tkBang, "!", startLine, startCol)
   of ':':
     l.advance()
     if l.ch == ':':
       l.advance()
-      newToken(tkDoubleColon, "::", startLine, startCol)
+      return newToken(tkDoubleColon, "::", startLine, startCol)
     else:
-      newToken(tkError, ":", startLine, startCol)
+      return newToken(tkError, ":", startLine, startCol)
   else:
-    newToken(tkError, $l.ch, startLine, startCol)
+    let err = l.ch
+    l.advance()
+    return newToken(tkError, $err, startLine, startCol)

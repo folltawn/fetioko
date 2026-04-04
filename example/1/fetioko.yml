@@ -1,0 +1,11 @@
+name: "my-app"
+version: "0.1.0"
+author: []
+main: "main.ftk"
+assembly:
+    build:
+        outfile: "${name}-${version}"
+        outdir: "bin"
+    test:
+        outfile: "test_${name}_${version}"
+        outdir: "test"

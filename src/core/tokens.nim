@@ -5,7 +5,7 @@ type
     # Types
     tkInt, tkStr, tkFloat, tkChar, tkBool, tkDoubleType
     # Punctuation
-    tkLParen, tkRParen, tkLBrace, tkRBrace, tkSemi, tkComma, tkDoubleColon, tkPipe
+    tkLParen, tkRParen, tkLBrace, tkRBrace, tkSemi, tkComma, tkDoubleColon, tkPipe, tkBang
     # Operators
     tkEq, tkPlus, tkMinus, tkMul, tkDiv
     # Values

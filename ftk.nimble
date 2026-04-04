@@ -1,4 +1,4 @@
-version     = "26.04.1"
+version     = "26.04.2"
 description = "Compiler of Programming Language Fetioko"
 author      = "Folltawn"
 license     = "Apache-2.0"
@@ -11,7 +11,7 @@ task build, "Build the project":
   exec "nim c -d:release --out:bin/fetioko src/ftk.nim"
 
 task test, "Build the test project":
-  exec "nim c -d:release --out:bin/fetioko src/ftk.nim"
+  exec "nim c -d:release --out:test/fetioko src/ftk.nim"
 
 task clean, "Remove compiled files":
   when defined(windows):

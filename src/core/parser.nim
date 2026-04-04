@@ -1,96 +1,107 @@
+import std/strutils
 import ./tokens
 import ./context
-import ../constructs/sendln/sem
+import ./errors
+import ./ast
 
 type
-  ASTKind* = enum
-    nkSendLn, nkReturn, nkEOF
-  
-  ASTNode* = ref object
-    kind*: ASTKind
-    line*: int
-    col*: int
-    case*: ASTKind
-    of nkSendLn:
-      args*: seq[SendLnArg]
-      concat*: bool
-    of nkReturn:
-      retValue*: string
-    of nkEOF:
-      discard
-
-  SendLnArgKind* = enum
-    akString, akInt, akFloat, akBool, akIdent
-
-  SendLnArg* = ref object
-    kind*: SendLnArgKind
-    strVal*: string
-    intVal*: int
-    floatVal*: float
-    boolVal*: bool
-    identVal*: string
-
   Parser* = ref object
     ctx*: Context
     tokens*: seq[Token]
     pos*: int
 
 proc current(p: Parser): Token =
-  if p.pos < p.tokens.len: p.tokens[p.pos] else: nil
+  if p.pos < p.tokens.len:
+    return p.tokens[p.pos]
+  return nil
 
 proc peek(p: Parser): Token =
-  if p.pos + 1 < p.tokens.len: p.tokens[p.pos + 1] else: nil
+  if p.pos + 1 < p.tokens.len:
+    return p.tokens[p.pos + 1]
+  return nil
 
 proc advance(p: Parser) =
   inc p.pos
 
 proc expect(p: Parser, kind: TokenKind): Token =
-  if p.current.kind != kind:
-    raise newCompilerError("Expected " & $kind & ", got " & $p.current.kind,
-                          p.ctx.mainFile, p.current.line, p.current.col)
-  result = p.current
+  let tok = p.current
+  if tok == nil or tok.kind != kind:
+    let err = newCompilerError(
+      ecUnknown,
+      p.ctx.mainFile,
+      if tok != nil: tok.line else: 1,
+      if tok != nil: tok.col else: 1
+    )
+    raise err
   p.advance()
+  return tok
 
 proc parseExpression(p: Parser): SendLnArg =
   let tok = p.current
+  if tok == nil:
+    let err = newCompilerError(ecUnknown, p.ctx.mainFile, 1, 1)
+    raise err
+  
   case tok.kind
   of tkStringLit:
     p.advance()
-    SendLnArg(kind: akString, strVal: tok.lexeme)
+    return SendLnArg(kind: akString, strVal: tok.lexeme)
   of tkIntLit:
     p.advance()
-    SendLnArg(kind: akInt, intVal: parseInt(tok.lexeme))
+    return SendLnArg(kind: akInt, intVal: parseInt(tok.lexeme))
   of tkFloatLit:
     p.advance()
-    SendLnArg(kind: akFloat, floatVal: parseFloat(tok.lexeme))
+    return SendLnArg(kind: akFloat, floatVal: parseFloat(tok.lexeme))
   of tkBoolLit:
     p.advance()
-    SendLnArg(kind: akBool, boolVal: tok.lexeme == "true")
+    return SendLnArg(kind: akBool, boolVal: tok.lexeme == "true")
   of tkIdent:
     p.advance()
-    SendLnArg(kind: akIdent, identVal: tok.lexeme)
+    return SendLnArg(kind: akIdent, identVal: tok.lexeme)
   else:
-    raise newCompilerError("Expected expression", p.ctx.mainFile, tok.line, tok.col)
+    let err = newCompilerError(ecUnknown, p.ctx.mainFile, tok.line, tok.col)
+    raise err
 
 proc parseSendLn(p: Parser): ASTNode =
   let startToken = p.current
-  p.expect(tkSendLn)
-  p.expect(tkLParen)
+  if startToken == nil:
+    let err = newCompilerError(ecUnknown, p.ctx.mainFile, 1, 1)
+    raise err
+  
+  discard p.expect(tkSendLn)
+  
+  # sendln!() - встроенная функция с !
+  if p.current != nil and p.current.kind == tkBang:
+    p.advance()
+  
+  discard p.expect(tkLParen)
   
   var args: seq[SendLnArg] = @[]
   var concat = false
   
-  while p.current.kind != tkRParen:
+  while p.current != nil and p.current.kind != tkRParen:
     if p.current.kind == tkPipe:
       concat = true
       p.advance()
     else:
       args.add(p.parseExpression())
   
-  p.expect(tkRParen)
-  p.expect(tkSemi)
+  discard p.expect(tkRParen)
   
-  ASTNode(
+  # Проверяем ;
+  if p.current == nil or p.current.kind != tkSemi:
+    let err = newCompilerError(
+      ecMissingSemicolon,
+      p.ctx.mainFile,
+      if p.current != nil: p.current.line else: startToken.line,
+      if p.current != nil: p.current.col else: startToken.col + 5
+    )
+    report(err)
+    quit(1)
+  
+  p.advance()
+  
+  return ASTNode(
     kind: nkSendLn,
     line: startToken.line,
     col: startToken.col,
@@ -100,25 +111,35 @@ proc parseSendLn(p: Parser): ASTNode =
 
 proc parseReturn(p: Parser): ASTNode =
   let startToken = p.current
-  p.expect(tkReturn)
+  if startToken == nil:
+    let err = newCompilerError(ecUnknown, p.ctx.mainFile, 1, 1)
+    raise err
+  
+  discard p.expect(tkReturn)
   var value = ""
-  if p.current.kind != tkSemi:
+  if p.current != nil and p.current.kind != tkSemi:
     value = p.current.lexeme
     p.advance()
-  p.expect(tkSemi)
-  ASTNode(kind: nkReturn, line: startToken.line, col: startToken.col, retValue: value)
+  discard p.expect(tkSemi)
+  
+  return ASTNode(
+    kind: nkReturn,
+    line: startToken.line,
+    col: startToken.col,
+    retValue: value
+  )
 
 proc parse*(p: Parser): seq[ASTNode] =
   result = @[]
-  while p.current.kind != tkEOF:
+  while p.current != nil and p.current.kind != tkEOF:
     case p.current.kind
     of tkSendLn:
       result.add(p.parseSendLn())
     of tkReturn:
       result.add(p.parseReturn())
     else:
-      raise newCompilerError("Unexpected token: " & $p.current.kind,
-                            p.ctx.mainFile, p.current.line, p.current.col)
+      let err = newCompilerError(ecUnknown, p.ctx.mainFile, p.current.line, p.current.col)
+      raise err
 
 proc initParser*(ctx: Context, tokens: seq[Token]): Parser =
-  Parser(ctx: ctx, tokens: tokens, pos: 0)
+  return Parser(ctx: ctx, tokens: tokens, pos: 0)

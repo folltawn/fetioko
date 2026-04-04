@@ -1,54 +1,57 @@
-import ../../core/parser
-
-proc cType(arg: SendLnArg): string =
-  case arg.kind
-  of akString: "char*"
-  of akInt: "int"
-  of akFloat: "double"
-  of akBool: "int"
-  of akIdent: ""  # will be resolved
+import std/strutils
+import ../../core/ast
 
 proc cValue(arg: SendLnArg): string =
   case arg.kind
-  of akString: "\"" & arg.strVal.replace("\"", "\\\"") & "\""
-  of akInt: $arg.intVal
-  of akFloat: $arg.floatVal
-  of akBool: if arg.boolVal: "1" else: "0"
-  of akIdent: arg.identVal
+  of akString:
+    return "\"" & arg.strVal.replace("\"", "\\\"") & "\""
+  of akInt:
+    return $arg.intVal
+  of akFloat:
+    let s = $arg.floatVal
+    if '.' in s:
+      var trimmed = s
+      while trimmed.len > 0 and trimmed[^1] == '0':
+        trimmed = trimmed[0..^2]
+      if trimmed.len > 0 and trimmed[^1] == '.':
+        trimmed = trimmed[0..^2]
+      return trimmed
+    return s
+  of akBool:
+    return if arg.boolVal: "1" else: "0"
+  of akIdent:
+    return arg.identVal
 
 proc genSendLn*(node: ASTNode): string =
   if node.concat:
-    # Конкатенация через | превращается в несколько вызовов printf
-    var result = ""
+    var result = "    "
     for arg in node.args:
       case arg.kind
       of akString:
-        result.add("printf(" & cValue(arg) & ");\n")
+        result.add("printf(" & cValue(arg) & ");")
       of akInt:
-        result.add("printf(\"%d\", " & cValue(arg) & ");\n")
+        result.add("printf(\"%d\", " & cValue(arg) & ");")
       of akFloat:
-        result.add("printf(\"%f\", " & cValue(arg) & ");\n")
+        result.add("printf(\"%g\", " & cValue(arg) & ");")
       of akBool:
-        result.add("printf(\"%d\", " & cValue(arg) & ");\n")
+        result.add("printf(\"%d\", " & cValue(arg) & ");")
       of akIdent:
-        result.add("printf(\"%s\", " & cValue(arg) & ");\n")
+        result.add("printf(\"%s\", " & cValue(arg) & ");")
     result.add("printf(\"\\n\");\n")
-    result
+    return result
   else:
-    # Обычный sendln с одним аргументом
     if node.args.len == 1:
       let arg = node.args[0]
       case arg.kind
       of akString:
-        "printf(" & cValue(arg) & ");\nprintf(\"\\n\");\n"
+        return "    printf(" & cValue(arg) & ");\n    printf(\"\\n\");\n"
       of akInt:
-        "printf(\"%d\\n\", " & cValue(arg) & ");\n"
+        return "    printf(\"%d\\n\", " & cValue(arg) & ");\n"
       of akFloat:
-        "printf(\"%f\\n\", " & cValue(arg) & ");\n"
+        return "    printf(\"%g\\n\", " & cValue(arg) & ");\n"
       of akBool:
-        "printf(\"%d\\n\", " & cValue(arg) & ");\n"
+        return "    printf(\"%d\\n\", " & cValue(arg) & ");\n"
       of akIdent:
-        "printf(\"%s\\n\", " & cValue(arg) & ");\n"
+        return "    printf(\"%s\\n\", " & cValue(arg) & ");\n"
     else:
-      # Множественные аргументы без конкатенации - пока не поддерживаем
-      "// TODO: multiple args without concat\n"
+      return "    // TODO: multiple args without concat\n"
