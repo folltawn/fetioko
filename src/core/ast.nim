@@ -1,7 +1,10 @@
+import ./tokens
+
 type
   ASTKind* = enum
     nkSendLn
     nkReturn
+    nkFunction
     nkEOF
   
   ASTNode* = ref object
@@ -13,8 +16,18 @@ type
       concat*: bool
     of nkReturn:
       retValue*: string
+    of nkFunction:
+      pub*: bool
+      returnType*: string
+      name*: string
+      params*: seq[Param]
+      body*: seq[ASTNode]
     of nkEOF:
       discard
+
+  Param* = ref object
+    name*: string
+    paramType*: string
 
   SendLnArgKind* = enum
     akString
@@ -24,14 +37,9 @@ type
     akIdent
 
   SendLnArg* = ref object
-    case kind*: SendLnArgKind
-    of akString:
-      strVal*: string
-    of akInt:
-      intVal*: int
-    of akFloat:
-      floatVal*: float
-    of akBool:
-      boolVal*: bool
-    of akIdent:
-      identVal*: string
+    kind*: SendLnArgKind
+    strVal*: string
+    intVal*: int
+    floatVal*: float
+    boolVal*: bool
+    identVal*: string

@@ -70,7 +70,6 @@ proc parseSendLn(p: Parser): ASTNode =
   
   discard p.expect(tkSendLn)
   
-  # sendln!() - встроенная функция с !
   if p.current != nil and p.current.kind == tkBang:
     p.advance()
   
@@ -86,17 +85,25 @@ proc parseSendLn(p: Parser): ASTNode =
     else:
       args.add(p.parseExpression())
   
-  discard p.expect(tkRParen)
+  # Запоминаем позицию закрывающей скобки
+  let rparenToken = p.current
+  if rparenToken == nil or rparenToken.kind != tkRParen:
+    let err = newCompilerError(ecUnknown, p.ctx.mainFile, 
+                               if rparenToken != nil: rparenToken.line else: startToken.line,
+                               if rparenToken != nil: rparenToken.col else: startToken.col)
+    raise err
+  
+  # Позиция для ошибки — сразу после закрывающей скобки
+  let errorLine = rparenToken.line
+  let errorCol = rparenToken.col + 1  # следующий символ после ')'
+  
+  p.advance()  # пропускаем tkRParen
   
   # Проверяем ;
   if p.current == nil or p.current.kind != tkSemi:
-    let err = newCompilerError(
-      ecMissingSemicolon,
-      p.ctx.mainFile,
-      if p.current != nil: p.current.line else: startToken.line,
-      if p.current != nil: p.current.col else: startToken.col + 5
-    )
+    let err = newCompilerError(ecMissingSemicolon, p.ctx.mainFile, errorLine, errorCol)
     report(err)
+    printErrorSummary()
     quit(1)
   
   p.advance()
@@ -129,6 +136,78 @@ proc parseReturn(p: Parser): ASTNode =
     retValue: value
   )
 
+proc parseFunction(p: Parser): ASTNode =
+  let startToken = p.current
+  var isPub = false
+  
+  # pub?
+  if p.current != nil and p.current.kind == tkPub:
+    isPub = true
+    p.advance()
+  
+  # return type (int, str, etc.)
+  if p.current == nil or p.current.kind notin [tkInt, tkStr, tkFloat, tkChar, tkBool, tkDoubleType]:
+    let err = newCompilerError(ecUnknown, p.ctx.mainFile, p.current.line, p.current.col)
+    raise err
+  
+  let returnType = p.current.lexeme
+  p.advance()
+  
+  # function name
+  if p.current == nil or p.current.kind != tkIdent:
+    let err = newCompilerError(ecUnknown, p.ctx.mainFile, p.current.line, p.current.col)
+    raise err
+  
+  let funcName = p.current.lexeme
+  p.advance()
+  
+  # parameters (
+  discard p.expect(tkLParen)
+  
+  var params: seq[Param] = @[]
+  # TODO: parse parameters
+  
+  discard p.expect(tkRParen)
+  
+  # body {
+  discard p.expect(tkLBrace)
+  
+  var body: seq[ASTNode] = @[]
+  while p.current != nil and p.current.kind != tkRBrace:
+    case p.current.kind
+    of tkSendLn:
+      body.add(p.parseSendLn())
+    of tkReturn:
+      body.add(p.parseReturn())
+    else:
+      let err = newCompilerError(ecUnknown, p.ctx.mainFile, p.current.line, p.current.col)
+      raise err
+  
+  discard p.expect(tkRBrace)
+  
+  # Проверяем, что функция возвращает значение
+  var hasReturn = false
+  for node in body:
+    if node.kind == nkReturn:
+      hasReturn = true
+      break
+  
+  if not hasReturn and funcName != "main":
+    let err = newCompilerError(ecMissingReturn, p.ctx.mainFile, startToken.line, startToken.col)
+    report(err)
+    quit(1)
+  
+  return ASTNode(
+    kind: nkFunction,
+    line: startToken.line,
+    col: startToken.col,
+    pub: isPub,
+    returnType: returnType,
+    name: funcName,
+    params: params,
+    body: body
+  )
+
 proc parse*(p: Parser): seq[ASTNode] =
   result = @[]
   while p.current != nil and p.current.kind != tkEOF:
@@ -137,6 +216,8 @@ proc parse*(p: Parser): seq[ASTNode] =
       result.add(p.parseSendLn())
     of tkReturn:
       result.add(p.parseReturn())
+    of tkPub, tkInt, tkStr, tkFloat, tkChar, tkBool, tkDoubleType:
+      result.add(p.parseFunction())
     else:
       let err = newCompilerError(ecUnknown, p.ctx.mainFile, p.current.line, p.current.col)
       raise err

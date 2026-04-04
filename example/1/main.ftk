@@ -1,4 +1,8 @@
-sendln!("Hello" | " world");
-sendln!(42);
-sendln!(3.14);
-sendln!(true);
+pub int main() {
+    sendln!("Hello" | " world");
+    sendln!(42);
+    sendln!(3.14);
+    sendln!(true)
+    
+    return 0;
+}

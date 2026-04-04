@@ -18,8 +18,12 @@ type
     ecUnknownVariable = 0x0004
     ecUnknownPath = 0x0005
     ecUnknownModule = 0x0006
-    ecWrongArgumentType = 0x0007      # новый код
-    ecMissingArgument = 0x0008        # новый код
+    ecWrongArgumentType = 0x0007
+    ecMissingArgument = 0x0008
+    ecMainNotFound = 0x0009           # main функция не найдена
+    ecMainWrongSignature = 0x000A     # неправильная сигнатура main
+    ecMissingReturn = 0x000B          # отсутствует return
+    ecVoidFunction = 0x000C           # функция не возвращает значение
 
   CompilerError* = ref object of CatchableError
     code*: ErrorCode
@@ -51,6 +55,10 @@ proc report*(err: CompilerError) =
     of ecUnknownModule: "0x0006"
     of ecWrongArgumentType: "0x0007"
     of ecMissingArgument: "0x0008"
+    of ecMainNotFound: "0x0009"
+    of ecMainWrongSignature: "0x000A"
+    of ecMissingReturn: "0x000B"
+    of ecVoidFunction: "0x000C"
   
   let msg = case err.code
     of ecUnknown: "Unknown."
@@ -62,14 +70,18 @@ proc report*(err: CompilerError) =
     of ecUnknownModule: "Unknown module."
     of ecWrongArgumentType: "Wrong argument type."
     of ecMissingArgument: "Missing argument."
+    of ecMainNotFound: "Main function not found."
+    of ecMainWrongSignature: "Main function must be 'pub int main()'."
+    of ecMissingReturn: "Missing return statement."
+    of ecVoidFunction: "Function must return a value."
   
   stdout.write(FG_RED & "ERROR. " & RESET)
   stdout.write(FG_YELLOW & codeStr & ": " & RESET)
-  stdout.write(msg & "\n\n")
+  stdout.write(msg & "\n")
   
-  stdout.write(FG_CYAN & "    | \\IN: " & RESET)
+  stdout.write(FG_DARK_GRAY & "    | \\IN: " & RESET)
   stdout.write(err.file & ":" & $err.line & ":" & $err.col & "\n")
-  stdout.write("    |\n")
+  stdout.write(FG_DARK_GRAY & "    |\n" & RESET)
   
   let lines = readFile(err.file).splitLines()
   
@@ -81,22 +93,26 @@ proc report*(err: CompilerError) =
     let lineContent = if i <= lines.len: lines[i-1] else: "<Empty>"
     
     if lineNum == err.line:
-      stdout.write(FG_YELLOW & " " & $lineNum & " | " & RESET)
+      # Выравнивание номера строки по правому краю до 3 символов
+      stdout.write(FG_YELLOW & align($lineNum, 3) & " | " & RESET)
       stdout.write(lineContent & "\n")
-      var arrow = "    | "
-      for _ in 1..<err.col:
+      
+      # Стрелка — тоже с учетом выравнивания
+      var arrow = (FG_DARK_GRAY & "    | " & RESET)
+      # Добавляем отступ для номера строки (3 символа + " | " = 5)
+      for _ in 1..<(err.col):
         arrow.add(" ")
-      arrow.add("^")
+      arrow.add(FG_YELLOW & "^")
       let remaining = lineContent.len - err.col + 1
       for _ in 0..<remaining:
         arrow.add("~")
       stdout.write(FG_GREEN & arrow & " Here (" & $err.line & ":" & $err.col & ")" & RESET & "\n")
     else:
       if lineContent == "" or lineContent == "<Empty>":
-        stdout.write(FG_DARK_GRAY & " " & $lineNum & " | " & RESET)
+        stdout.write(FG_DARK_GRAY & align($lineNum, 3) & " | " & RESET)
         stdout.write(FG_DARK_GRAY & "<Empty>" & RESET & "\n")
       else:
-        stdout.write(" " & $lineNum & " | " & lineContent & "\n")
+        stdout.write(FG_DARK_GRAY & align($lineNum, 3) & " | " & RESET & lineContent & "\n")
   
   stdout.write("\n")
 

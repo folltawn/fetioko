@@ -1,6 +1,7 @@
-import std/[os, osproc]
+import std/[os, strformat, tables, sequtils, strutils, osproc]
 import ./context, ./lexer, ./parser, ./config, ./errors, ./ast, ./tokens
 import ../constructs/sendln/sem, ../constructs/sendln/codegen
+import ../constructs/function/sem, ../constructs/function/codegen
 
 type
   Conductor* = ref object
@@ -35,6 +36,7 @@ proc tokenizeFile(c: Conductor, path: string): seq[Token] =
     if t.kind == tkError:
       let err = newCompilerError(ecUnknown, path, t.line, t.col)
       report(err)
+      printErrorSummary()
       quit(1)
   result = tokens
 
@@ -47,24 +49,46 @@ proc compileFile(c: Conductor, path: string): string =
   var parser = initParser(c.ctx, tokens)
   let ast = parser.parse()
   
+  # Семантический анализ
   for node in ast:
     case node.kind
     of nkSendLn:
       semSendLn(c.ctx, node)
+    of nkFunction:
+      semFunction(c.ctx, node)
     else:
       discard
   
-  var body = ""
+  # Проверяем наличие main функции
+  var mainFunc: ASTNode = nil
+  for node in ast:
+    if node.kind == nkFunction and node.name == "main":
+      mainFunc = node
+      break
+  
+  if mainFunc == nil:
+    let err = newCompilerError(ecMainNotFound, path, 1, 1)
+    report(err)
+    printErrorSummary()
+    quit(1)
+  
+  # Проверяем сигнатуру main
+  if not mainFunc.pub or mainFunc.returnType != "int" or mainFunc.params.len > 0:
+    let err = newCompilerError(ecMainWrongSignature, path, mainFunc.line, mainFunc.col)
+    report(err)
+    printErrorSummary()
+    quit(1)
+  
+  # Генерация кода
+  var functionsCode = ""
   for node in ast:
     case node.kind
-    of nkSendLn:
-      body.add(genSendLn(node))
-    of nkReturn:
-      body.add("    return " & node.retValue & ";\n")
+    of nkFunction:
+      functionsCode.add(genFunction(node))
     else:
       discard
   
-  result = "#include <stdio.h>\n\nint main() {\n" & body & "    return 0;\n}\n"
+  result = "#include <stdio.h>\n\n" & functionsCode
 
 proc build*(c: Conductor) =
   c.log("Building project: " & c.config.name)
