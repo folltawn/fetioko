@@ -1,0 +1,123 @@
+
+> Structure
+===================
+fetioko/
+|- LICENSE
+|- README.md
+|- ftk.nimble
+|- src/
+   |- ftk.nim
+   |- core/
+   |  |- parser.nim # что собирать в C код
+   |  |- compiler.nim # как собирать в C код
+   |  |- lexer.nim # лексемы
+   |  |- ast.nim # ast
+   |  |- errors.nim # красивые ошибки
+   |  |- common.nim # base types (float, double, string, char, int)
+   |  |- connecter.nim # для файлов
+   |  |- stmt/
+   |  |  |- ...
+   |  |- ...
+   |
+   |- std/
+   |  |- Lock area; for begin - core
+===================
+
+> Structure V2
+===================
+fetioko/
+|- LICENSE
+|- README.md
+|- ftk.nimble
+|- src/
+   |- ftk.nim
+   |- core/
+   |  |- parser.nim # что собирать в C код
+   |  |- compiler.nim # как собирать в C код
+   |  |- lexer.nim # лексемы
+   |  |- errors.nim # красивые ошибки
+   |  |- common.nim # base types (float, double, str, char, int)
+   |  |- context.nim # контекст
+   |  |- conductor.nim # дирижер
+   |  |- sem.nim # семантический анализ
+   |  |- modules/
+   |  |  |- sendln/
+   |  |  |  |- main.nim
+   |  |  |  |- errors.nim
+   |  |  |  |- construct.nim
+   |
+   |- std/
+   |  |- Lock area; for begin - core
+
+то есть по тупому:
+
+ftk.nim (cli) передает адрес файла проекта (fetioko.yml) в conductor
+conductor смотрит fetioko.yml и достает оттуда main
+Переходит в main и парсит его (парсер по сути просто курсор, возвращающий токены в context)
+смотрит на импорты библиотек и импортирует, добавляя в current/.__ftk__/cache/ все модули из библиотек
+смотрит на импорты файлов и проверяет "существуют ли они"
+когда готово то conductor вызывет sem.nim и просит "сравни весь этот массив токенов с возможными из всех modules/*/construct.nim"
+потом по такому же пути он в другие массивы разбирает на токены и остальные файлы
+из массивов составляется result_* (где: * - предыдущее название массива) с итоговыми данными, где вычищены все неиспользуемые переменные и др.
+каждый файл превращается в иквивалент в C: main.ftk -> main.c, hello.ftk -> hello.c
+
+Для справки:
+tkPub = "pub" (если есть - можно импортировать в другие файлы)
+tkVar = "var"
+tkDouble = "::"
+tkInt_type = "int"
+tkEq = "="
+tkSemi = ";"
+tkPipe = "|"
+tkOR = "||"
+
+| конкакеция строк в sendln и sendf
+
+Как выглядят файлы:
+fetioko.yml:
+```
+name: "my-app"
+version: "0.1.0"
+author: []
+main: "file.ftk"
+assembly:
+    build:
+        outfile: "${name}-${version}"
+        outdir: "bin"
+    test:
+        outfile: "test_${name}_${version}"
+        outdir: "test"
+```
+
+file.ftk:
+```
+use file/in/folder;
+
+pub int main() {
+    sendln(x | " hello");
+    return 0;
+}
+```
+
+file/in/folder.ftk:
+```
+pub var::int x = 108;
+```
+
+файл context.nim выглядит примерно так:
+```
+let files* = @["F:/full/path/to/file.ftk","F:/full/path/to/file/in/folder.ftk"] # fetioko.nim в папке .../path/to/
+let file_file* = @[tkImport,vlStr_0000,tkSemi,tkPub,tkInt_type,tkDouble,vlStr_0001,tkLParen,tkRParen,tkLBrace,tkSendln,tkLParen,vlStr_0002,tkPipe,vlStr_0003,tkRParen,tkSemi,tkReturn,vlInt_0004,tkSemi,tkRBrace,tkEOF]
+let file_file_in_folder* = @[tkPub,tkVar,tkDouble,tkInt_type,vlStr_0005,tkEq,vlInt_0006,tkSemi,tkEOF]
+
+let values = {
+    "0000": "file/in/folder",
+    "0001": "main",
+    "0002": "x",
+    "0003": " hello",
+    "0004": 0,
+    "0005": "x", # имя переменной
+    "0006": 108 # id = 0003, значит ищет значение с id *_0003
+} # если что в импортах или где-то еще file/in/folder = string (преобразуется в "file/in/folder")
+```
+===================
