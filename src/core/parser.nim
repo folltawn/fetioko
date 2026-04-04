@@ -44,6 +44,11 @@ proc parseExpression(p: Parser): SendLnArg =
   
   case tok.kind
   of tkStringLit:
+    if tok.lexeme == "Unclosed string":
+      let err = newCompilerError(ecMissingStringQuote, p.ctx.mainFile, tok.line, tok.col)
+      report(err)
+      printErrorSummary()
+      quit(1)
     p.advance()
     return SendLnArg(kind: akString, strVal: tok.lexeme)
   of tkIntLit:
@@ -88,25 +93,25 @@ proc parseSendLn(p: Parser): ASTNode =
   # Запоминаем позицию закрывающей скобки
   let rparenToken = p.current
   if rparenToken == nil or rparenToken.kind != tkRParen:
-    let err = newCompilerError(ecUnknown, p.ctx.mainFile, 
+    let err = newCompilerError(ecMissingRParen, p.ctx.mainFile, 
                                if rparenToken != nil: rparenToken.line else: startToken.line,
                                if rparenToken != nil: rparenToken.col else: startToken.col)
     raise err
   
-  # Позиция для ошибки — сразу после закрывающей скобки
-  let errorLine = rparenToken.line
-  let errorCol = rparenToken.col + 1  # следующий символ после ')'
+  let rparenLine = rparenToken.line
+  let rparenCol = rparenToken.col
   
-  p.advance()  # пропускаем tkRParen
+  p.advance()  # пропускаем )
   
-  # Проверяем ;
+  # Проверяем точку с запятой СРАЗУ после скобки
   if p.current == nil or p.current.kind != tkSemi:
-    let err = newCompilerError(ecMissingSemicolon, p.ctx.mainFile, errorLine, errorCol)
+    # Ошибка на позиции закрывающей скобки + 1
+    let err = newCompilerError(ecMissingSemicolon, p.ctx.mainFile, rparenLine, rparenCol + 1)
     report(err)
     printErrorSummary()
     quit(1)
   
-  p.advance()
+  p.advance()  # пропускаем ;
   
   return ASTNode(
     kind: nkSendLn,

@@ -1,7 +1,7 @@
 import std/[os, parseopt, strutils]
 import core/[conductor, config, errors]
 
-const version = "A26.04.2"
+const version = "A26.04.3"
 
 proc printHelp() =
   echo """

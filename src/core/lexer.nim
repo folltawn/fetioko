@@ -69,31 +69,26 @@ proc readString(l: Lexer): Token =
   let startCol = l.col
   l.advance()  # skip opening quote
   var str = ""
+  
   while l.ch != '"' and l.ch != '\0':
     if l.ch == '\\':
       l.advance()
       case l.ch
-      of 'n':
-        str.add('\n')
-        l.advance()
-      of 't':
-        str.add('\t')
-        l.advance()
-      of '\\':
-        str.add('\\')
-        l.advance()
-      of '"':
-        str.add('"')
-        l.advance()
-      else:
-        str.add(l.ch)
-        l.advance()
+      of 'n': str.add('\n')
+      of 't': str.add('\t')
+      of '\\': str.add('\\')
+      of '"': str.add('"')
+      else: str.add(l.ch)
     else:
       str.add(l.ch)
-      l.advance()
+    l.advance()
+  
   if l.ch == '"':
     l.advance()  # skip closing quote
-  newToken(tkStringLit, str, startLine, startCol)
+    result = newToken(tkStringLit, str, startLine, startCol)
+  else:
+    # Дошли до конца файла, а кавычка не закрыта
+    result = newToken(tkError, "Unclosed string", startLine, startCol)
 
 proc getNextToken*(l: Lexer): Token =
   l.skipWhitespace()
@@ -144,7 +139,14 @@ proc getNextToken*(l: Lexer): Token =
     return newToken(tkMul, "*", startLine, startCol)
   of '/':
     l.advance()
-    return newToken(tkDiv, "/", startLine, startCol)
+    if l.ch == '/':
+      # Однострочный комментарий — пропускаем до конца строки
+      while l.ch != '\n' and l.ch != '\0':
+        l.advance()
+      # После пропуска комментария продолжаем с новой строки
+      return l.getNextToken()
+    else:
+      return newToken(tkDiv, "/", startLine, startCol)
   of '!':
     l.advance()
     return newToken(tkBang, "!", startLine, startCol)
