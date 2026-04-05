@@ -4,29 +4,50 @@ import ../../core/ast
 proc cValue(arg: SendLnArg): string =
   case arg.kind
   of akString:
-    return "\"" & arg.strVal.replace("\"", "\\\"") & "\""
+    # Если strVal похоже на имя переменной (не в кавычках), то это переменная
+    if arg.strVal.len > 0 and arg.strVal[0] != '"':
+      return arg.strVal
+    else:
+      return "\"" & arg.strVal.replace("\"", "\\\"") & "\""
   of akInt:
-    return $arg.intVal
+    # Для int - если identVal не пустой, это переменная
+    if arg.identVal.len > 0:
+      return arg.identVal
+    else:
+      return $arg.intVal
   of akFloat:
-    let s = $arg.floatVal
-    if '.' in s:
-      var trimmed = s
-      while trimmed.len > 0 and trimmed[^1] == '0':
-        trimmed = trimmed[0..^2]
-      if trimmed.len > 0 and trimmed[^1] == '.':
-        trimmed = trimmed[0..^2]
-      return trimmed
-    return s
+    if arg.identVal.len > 0:
+      return arg.identVal
+    else:
+      let s = $arg.floatVal
+      if '.' in s:
+        var trimmed = s
+        while trimmed.len > 0 and trimmed[^1] == '0':
+          trimmed = trimmed[0..^2]
+        if trimmed.len > 0 and trimmed[^1] == '.':
+          trimmed = trimmed[0..^2]
+        return trimmed
+      return s
   of akBool:
-    return if arg.boolVal: "1" else: "0"
+    if arg.identVal.len > 0:
+      return arg.identVal
+    else:
+      return if arg.boolVal: "1" else: "0"
   of akChar:
-    return "'" & $arg.charVal & "'"
+    if arg.identVal.len > 0:
+      return arg.identVal
+    else:
+      return "'" & $arg.charVal & "'"
   of akIdent:
     return arg.identVal
 
 proc getFormat(arg: SendLnArg): string =
   case arg.kind
-  of akString: return "%s"
+  of akString:
+    if arg.strVal.len > 0 and arg.strVal[0] != '"':
+      return "%s"
+    else:
+      return "%s"
   of akInt: return "%d"
   of akFloat: return "%g"
   of akBool: return "%d"

@@ -3,13 +3,13 @@
 const char GLOBAL = 'G';
 
 int main(void) {
-    const int x = 14;
+    const int itz = 14;
     char* y = "hi";
     static const char f = 'f';
-    printf("%s\n", x);
+    printf("%d\n", itz);
     printf("%s\n", y);
-    printf("%s\n", f);
-    printf("%s\n", GLOBAL);
+    printf("%c\n", f);
+    printf("%c\n", GLOBAL);
     y = "hello";
     printf("%s\n", y);
     return 0;
@@ -17,7 +17,7 @@ int main(void) {
 
 static int fl(void) {
     static const int x = 14;
-    printf("%s\n", x);
+    printf("%d\n", x);
     return 0;
 }
 

@@ -1,5 +1,6 @@
 import std/tables
 import ./tokens
+import ./symbols
 
 type
   FileContext* = ref object
@@ -11,6 +12,7 @@ type
     files*: Table[string, FileContext]
     mainFile*: string
     verbose*: bool
+    symtab*: SymbolTable
 
 proc newContext*(): Context =
   Context(files: initTable[string, FileContext]())

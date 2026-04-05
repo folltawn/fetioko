@@ -1,4 +1,4 @@
-version     = "26.04.4"
+version     = "26.04.5"
 description = "Compiler of Programming Language Fetioko"
 author      = "Folltawn"
 license     = "Apache-2.0"

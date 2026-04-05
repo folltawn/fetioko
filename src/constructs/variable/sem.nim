@@ -1,18 +1,27 @@
 import ../../core/context
 import ../../core/ast
 import ../../core/errors
+import ../../core/symbols
+import ./errors
 import std/tables
 
-var g_constants*: Table[string, ASTNode]  # глобальные константы
-var g_staticVars*: Table[string, ASTNode] # статические переменные внутри функций
+var g_constants*: Table[string, ASTNode]
+var g_staticVars*: Table[string, ASTNode]
 
 proc semVariable*(ctx: Context, node: ASTNode, inFunction: bool) =
+  let success = ctx.symtab.declareSymbol(
+    node.varName,
+    skVariable,
+    node.varType,
+    node.modifier,
+    node.line,
+    node.col
+  )
+  if not success:
+    errorVariableAlreadyExists(ctx.mainFile, node.line, node.col, node.varName)
+  
   case node.modifier
-  of vmLet:
-    if node.value == "":
-      let err = newCompilerError(ecMissingArgument, ctx.mainFile, node.line, node.col)
-      report(err)
-  of vmVar:
+  of vmLet, vmVar:
     if node.value == "":
       let err = newCompilerError(ecMissingArgument, ctx.mainFile, node.line, node.col)
       report(err)

@@ -99,7 +99,7 @@ proc report*(err: CompilerError) =
   
   for i in startLine..endLine:
     let lineNum = i
-    let lineContent = if i <= lines.len: lines[i-1] else: "<Empty>"
+    let lineContent = if i <= lines.len: lines[i-1] else: " "
     
     if lineNum == err.line:
       stdout.write(FG_YELLOW & align($lineNum, 3) & " | " & RESET)
@@ -114,9 +114,9 @@ proc report*(err: CompilerError) =
         arrow.add("~")
       stdout.write(FG_GREEN & arrow & " Here (" & $err.line & ":" & $err.col & ")" & RESET & "\n")
     else:
-      if lineContent == "" or lineContent == "<Empty>":
+      if lineContent == "" or lineContent == " ":
         stdout.write(FG_DARK_GRAY & align($lineNum, 3) & " | " & RESET)
-        stdout.write(FG_DARK_GRAY & "<Empty>" & RESET & "\n")
+        stdout.write(FG_DARK_GRAY & " " & RESET & "\n")
       else:
         stdout.write(FG_DARK_GRAY & align($lineNum, 3) & " | " & RESET & lineContent & "\n")
   

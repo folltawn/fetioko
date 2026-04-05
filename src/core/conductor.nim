@@ -1,5 +1,5 @@
 import std/[os, strformat, tables, sequtils, strutils, osproc]
-import ./context, ./lexer, ./parser, ./config, ./errors, ./ast, ./tokens
+import ./context, ./lexer, ./parser, ./config, ./errors, ./ast, ./tokens, ./symbols
 import ../constructs/sendln/sem, ../constructs/sendln/codegen
 import ../constructs/function/sem, ../constructs/function/codegen
 import ../constructs/variable/sem, ../constructs/variable/codegen
@@ -50,15 +50,31 @@ proc compileFile(c: Conductor, path: string): string =
   var parser = initParser(c.ctx, tokens)
   let ast = parser.parse()
   
-  # Семантический анализ
+  # Создаем таблицу символов
+  c.ctx.symtab = newSymbolTable()
+  
+  # Первый проход: добавляем глобальные константы и переменные
+  for node in ast:
+    if node.kind == nkVariable:
+      if node.modifier == vmConst or not node.varPub:
+        semVariable(c.ctx, node, false)
+  
+  # Второй проход: семантика функций и sendln
   for node in ast:
     case node.kind
+    of nkFunction:
+      c.ctx.symtab.enterScope()
+      for stmt in node.body:
+        if stmt.kind == nkVariable:
+          semVariable(c.ctx, stmt, true)
+        elif stmt.kind == nkSendLn:
+          semSendLn(c.ctx, stmt)
+      semFunction(c.ctx, node)
+      c.ctx.symtab.exitScope()
     of nkSendLn:
       semSendLn(c.ctx, node)
-    of nkFunction:
-      semFunction(c.ctx, node)
     of nkVariable:
-      semVariable(c.ctx, node, false)
+      discard
     else:
       discard
   
@@ -75,7 +91,6 @@ proc compileFile(c: Conductor, path: string): string =
     printErrorSummary()
     quit(1)
   
-  # Проверяем сигнатуру main (используем funcPub)
   if not mainFunc.funcPub or mainFunc.returnType != "int" or mainFunc.params.len > 0:
     let err = newCompilerError(ecMainWrongSignature, path, mainFunc.line, mainFunc.col)
     report(err)
@@ -122,19 +137,20 @@ proc build*(c: Conductor) =
   writeFile(cPath, ccode)
   echo "Generated: ", cPath
   
-  if c.saveC:
-    echo "C source saved to: ", cPath
-  else:
-    let compileCmd = "gcc " & cPath & " -o " & exePath
-    echo "Compiling: ", compileCmd
-    let ret = execShellCmd(compileCmd)
-    if ret != 0:
-      echo "Compilation failed"
-      quit(1)
-    echo "Build complete: ", exePath
+  # ВСЕГДА компилируем exe
+  let compileCmd = "gcc " & cPath & " -o " & exePath
+  echo "Compiling: ", compileCmd
+  let ret = execShellCmd(compileCmd)
+  if ret != 0:
+    echo "Compilation failed"
+    quit(1)
+  echo "Build complete: ", exePath
   
+  # Если нужен только C файл - не удаляем его
   if not c.saveC:
+    # Если не просили сохранять - удаляем C файл, оставляем только exe
     removeFile(cPath)
+  # Если +savec - оставляем и C, и exe
 
 proc test*(c: Conductor) =
   c.log("Testing project: " & c.config.name)

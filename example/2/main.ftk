@@ -1,11 +1,17 @@
 const::char GLOBAL = 'G';
 
+int fl() {
+    const::int x = 14;
+    sendln!(x);
+    return 0;
+}
+
 pub int main() {
-    let::int x = 14;
+    let::int itz = 14;
     var::str y = "hi";
     const::char f = 'f';
     
-    sendln!(x);
+    sendln!(itz);
     sendln!(y);
     sendln!(f);
     sendln!(GLOBAL);
@@ -13,11 +19,7 @@ pub int main() {
     y = "hello";
     sendln!(y);
     
-    return 0;
-}
+    fl();
 
-int fl() {
-    const::int x = 14;
-    sendln!(x);
     return 0;
 }
